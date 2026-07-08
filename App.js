@@ -37,6 +37,29 @@ function openAppSettings() {
   Linking.openURL("app-settings:").catch(() => {});
 }
 
+// iOS 18+: Der „Lokales Netzwerk"-Dialog (und der Schalter in den Einstellungen)
+// erscheint NUR, wenn die App aktiv eine lokale-Netzwerk-/mDNS-Anfrage macht.
+// Ein normaler fetch auf die Tailscale-IP (100.x) wird sonst still geblockt
+// (Fehler -1009 „Local network prohibited"), ohne Dialog/Schalter.
+// Lösung: mehrfach eine `.local`-Adresse auflösen – allein der Auflösungsversuch
+// (mDNS/Bonjour) triggert die Berechtigung. Der Fund selbst ist egal.
+async function triggerLocalNetworkPrompt() {
+  if (!IS_IOS) return;
+  const hosts = [
+    "http://safezone-ai.local:8080/health",
+    "http://safezone.local./health",
+    "http://_http._tcp.local./",
+  ];
+  for (const url of hosts) {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 2000);
+      await fetch(url, { method: "GET", signal: ctrl.signal }).catch(() => {});
+      clearTimeout(t);
+    } catch (_) { /* egal – nur der Versuch zählt */ }
+  }
+}
+
 export default function App() {
   const [ready, setReady] = useState(false);
   const [user, setUser] = useState(null);
@@ -112,8 +135,11 @@ function LoginScreen({ onLoggedIn }) {
 
   // iOS-Erstlauf: einmalig erklären, dass gleich der Dialog „Lokales Netzwerk"
   // kommt und mit „Erlauben" bestätigt werden muss. Danach Flag speichern.
+  // Zusätzlich beim Start die Berechtigung aktiv anstoßen (mDNS), damit iOS den
+  // Dialog überhaupt zeigt und den Schalter anlegt.
   useEffect(() => {
     if (!IS_IOS) return;
+    triggerLocalNetworkPrompt();
     (async () => {
       const seen = await AsyncStorage.getItem("netInfoShown");
       if (!seen) setNetInfo(true);
@@ -133,6 +159,7 @@ function LoginScreen({ onLoggedIn }) {
 
   const retryNow = useCallback(async () => {
     setOnline(null);
+    await triggerLocalNetworkPrompt();   // iOS: Berechtigung ggf. erneut anstoßen
     const ok = await api.checkHealth();
     setOnline(ok);
   }, []);
@@ -244,7 +271,8 @@ function LoginScreen({ onLoggedIn }) {
             <Button label="Verstanden" onPress={async () => {
               await AsyncStorage.setItem("netInfoShown", "1");
               setNetInfo(false);
-              retryNow();   // stößt den iOS-Dialog aktiv an
+              await triggerLocalNetworkPrompt();   // löst den iOS-Dialog aktiv aus
+              retryNow();
             }} />
           </View>
         </View></View>

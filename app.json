@@ -9,17 +9,25 @@
     "backgroundColor": "#0b0b13",
     "icon": "./assets/icon.png",
     "extra": {
-      "eas": { "projectId": "a8c7b62e-b42a-42d5-8dbd-0a4b0e386511" }
+      "eas": {
+        "projectId": "a8c7b62e-b42a-42d5-8dbd-0a4b0e386511"
+      }
     },
     "ios": {
       "bundleIdentifier": "de.safezone.app",
       "buildNumber": "1",
       "supportsTablet": true,
       "infoPlist": {
-        "NSAppTransportSecurity": { "NSAllowsArbitraryLoads": true, "NSAllowsLocalNetworking": true },
-        "NSLocalNetworkUsageDescription": "SafeZone verbindet sich mit dem Server im Tailscale-/lokalen Netzwerk.",
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true,
+          "NSAllowsLocalNetworking": true
+        },
+        "NSLocalNetworkUsageDescription": "SafeZone verbindet sich mit dem SafeZone-Server im lokalen/Tailscale-Netzwerk. Bitte 'Erlauben', sonst ist der Server nicht erreichbar.",
         "NSPhotoLibraryUsageDescription": "SafeZone benötigt Galeriezugriff, um Einsatzbilder auszuwählen.",
-        "NSCameraUsageDescription": "SafeZone benötigt die Kamera, um Einsatzbilder aufzunehmen."
+        "NSCameraUsageDescription": "SafeZone benötigt die Kamera, um Einsatzbilder aufzunehmen.",
+        "NSBonjourServices": [
+          "_http._tcp"
+        ]
       }
     },
     "android": {
@@ -29,16 +37,33 @@
         "backgroundColor": "#172947"
       },
       "permissions": [
-        "INTERNET", "CAMERA", "READ_MEDIA_IMAGES",
-        "POST_NOTIFICATIONS", "FOREGROUND_SERVICE", "FOREGROUND_SERVICE_DATA_SYNC", "WAKE_LOCK"
+        "INTERNET",
+        "CAMERA",
+        "READ_MEDIA_IMAGES",
+        "POST_NOTIFICATIONS",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_DATA_SYNC",
+        "WAKE_LOCK"
       ]
     },
     "plugins": [
-      ["expo-build-properties", { "android": { "kotlinVersion": "1.9.25", "usesCleartextTraffic": true, "newArchEnabled": false } }],
-      ["expo-image-picker", {
-        "cameraPermission": "SafeZone benötigt die Kamera, um Einsatzbilder aufzunehmen.",
-        "photosPermission": "SafeZone benötigt Galeriezugriff, um Einsatzbilder auszuwählen."
-      }]
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "kotlinVersion": "1.9.25",
+            "usesCleartextTraffic": true,
+            "newArchEnabled": false
+          }
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "SafeZone benötigt die Kamera, um Einsatzbilder aufzunehmen.",
+          "photosPermission": "SafeZone benötigt Galeriezugriff, um Einsatzbilder auszuwählen."
+        }
+      ]
     ]
   }
 }
