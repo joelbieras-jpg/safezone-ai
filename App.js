@@ -150,7 +150,7 @@ function LoginScreen({ onLoggedIn }) {
         Alert.alert(
           "Keine Verbindung zum Server",
           "iOS blockiert vermutlich den Zugriff auf das lokale Netzwerk.\n\n" +
-          "1. Einstellungen → Datenschutz & Sicherheit → Lokales Netzwerk → „SafeZone AI" einschalten\n" +
+          "1. Einstellungen -> Datenschutz & Sicherheit -> Lokales Netzwerk -> 'SafeZone AI' einschalten\n" +
           "2. Sicherstellen, dass Tailscale (VPN) aktiv ist\n" +
           "3. App komplett schließen und neu öffnen",
           [
