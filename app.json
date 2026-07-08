@@ -26,7 +26,8 @@
         "NSPhotoLibraryUsageDescription": "SafeZone benötigt Galeriezugriff, um Einsatzbilder auszuwählen.",
         "NSCameraUsageDescription": "SafeZone benötigt die Kamera, um Einsatzbilder aufzunehmen.",
         "NSBonjourServices": [
-          "_http._tcp"
+          "_http._tcp",
+          "_lnp._tcp."
         ]
       }
     },

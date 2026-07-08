@@ -38,25 +38,29 @@ function openAppSettings() {
 }
 
 // iOS 18+: Der „Lokales Netzwerk"-Dialog (und der Schalter in den Einstellungen)
-// erscheint NUR, wenn die App aktiv eine lokale-Netzwerk-/mDNS-Anfrage macht.
-// Ein normaler fetch auf die Tailscale-IP (100.x) wird sonst still geblockt
-// (Fehler -1009 „Local network prohibited"), ohne Dialog/Schalter.
-// Lösung: mehrfach eine `.local`-Adresse auflösen – allein der Auflösungsversuch
-// (mDNS/Bonjour) triggert die Berechtigung. Der Fund selbst ist egal.
+// erscheint NUR, wenn die App aktiv einen echten Bonjour-/mDNS-Service-Browser
+// startet (NSNetServiceBrowser). Ein normaler fetch auf die Tailscale-IP (100.x)
+// wird sonst still geblockt (Fehler -1009 „Local network prohibited"), ohne
+// Dialog/Schalter. Deshalb nutzen wir das dedizierte Modul
+// `@generac/react-native-local-network-permission` (requestLocalNetworkAccess);
+// der `.local`-Fetch bleibt als harmloser Zusatz-Trigger.
+let _requestLNA = null;
+try { _requestLNA = require("@generac/react-native-local-network-permission").requestLocalNetworkAccess; } catch (_) {}
+
 async function triggerLocalNetworkPrompt() {
   if (!IS_IOS) return;
-  const hosts = [
-    "http://safezone-ai.local:8080/health",
-    "http://safezone.local./health",
-    "http://_http._tcp.local./",
-  ];
-  for (const url of hosts) {
+  // 1) Zuverlässiger Weg: echter Bonjour-Browser -> iOS zeigt Dialog + legt Schalter an
+  if (_requestLNA) {
+    try { await _requestLNA(); } catch (e) { try { rlog("LNA-fehler: " + (e?.message || e)); } catch {} }
+  }
+  // 2) Zusatz-Trigger: mDNS/.local auflösen (schadet nicht)
+  for (const url of ["http://safezone-ai.local:8080/health", "http://_http._tcp.local./"]) {
     try {
       const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 2000);
+      const t = setTimeout(() => ctrl.abort(), 1500);
       await fetch(url, { method: "GET", signal: ctrl.signal }).catch(() => {});
       clearTimeout(t);
-    } catch (_) { /* egal – nur der Versuch zählt */ }
+    } catch (_) {}
   }
 }
 
