@@ -17,7 +17,10 @@ import { C, ROLE_LABEL } from "./src/theme";
 import { Button } from "./src/ui";
 import * as api from "./src/api";
 import { startLive, stopLive } from "./src/live";
-import { requestPermission as requestNotifPermission } from "./src/notify";
+import {
+  requestPermission as requestNotifPermission,
+  ensureChannels as ensureNotifChannels,
+} from "./src/notify";
 import { installCrashReporter, rlog } from "./src/crashlog";
 import {
   CctvDashboard, PatrolDashboard, VendorScreen, ProsecutorDashboard, VorfallDetail,
@@ -69,10 +72,15 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [nav, setNav] = useState({ screen: "home", params: {} });
 
-  // Beim Start: gespeicherte Session wiederherstellen
+  // Beim Start: gespeicherte Session wiederherstellen + Benachrichtigungen
+  // vorbereiten (Kanaele anlegen, Berechtigung anfragen). Die Berechtigung wird
+  // bewusst schon beim App-Start erfragt - nicht erst beim ersten Alarm, sonst
+  // ginge genau die erste Gefahrenwarnung verloren.
   useEffect(() => {
     (async () => {
       await api.initApi();
+      try { await ensureNotifChannels(); } catch (e) { rlog("ensureChannels-fehler: " + (e?.message || e)); }
+      requestNotifPermission().catch(() => {});
       const u = await api.restoreUser();
       setUser(u);
       setReady(true);
@@ -87,7 +95,10 @@ export default function App() {
     if (user) {
       rlog(`login ok als ${user.role} -> startLive`);
       try { startLive(); } catch (e) { rlog("startLive-fehler: " + (e?.message || e)); }
-      requestNotifPermission().catch(() => {});   // einmalig Rechte anfragen
+      // Falls beim App-Start noch nicht erteilt (z.B. Erst-Login direkt nach der
+      // Installation): Berechtigung erneut anfragen. Ist sie schon erteilt oder
+      // dauerhaft abgelehnt, ist der Aufruf ein No-Op.
+      requestNotifPermission().catch(() => {});
     } else {
       stopLive();
     }

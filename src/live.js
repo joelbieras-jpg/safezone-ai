@@ -6,8 +6,18 @@
  * SOFORT – kein manuelles Runterwischen mehr nötig).
  *
  * Benachrichtigungen: Ist die App NICHT im Vordergrund (minimiert/Standby), wird
- * bei einer neuen Detektion eine Benachrichtigung gezeigt (notify.js). Im
- * Vordergrund wird NICHT benachrichtigt – dort nur die Liste aktualisiert.
+ * eine lokale Benachrichtigung gezeigt (notify.js). Im Vordergrund wird NICHT
+ * benachrichtigt – dort nur die Liste aktualisiert.
+ *
+ * ROLLENGERECHT (siehe notify.js notifyForEvent):
+ *   cctv       -> 'vorfall.neu'      (ungepruefte KI-Detektion, nur CCTV)
+ *   patrol     -> 'vorfall.bewertet' mit status='sicherheitsrelevant' (Einsatz)
+ *   vendor     -> 'empfehlung'       (reduziert, OHNE KI-Details)
+ *   prosecutor -> 'vorfall.freigegeben'
+ *
+ * Die WS-Verbindung wird mit dem Session-Token aufgebaut (?token=...); der Server
+ * stellt daraufhin nur die fuer die Rolle erlaubten Events zu. Die Whitelist in
+ * notify.js prueft das clientseitig ein zweites Mal (Doppelabsicherung).
  *
  * HINWEIS: Der frühere Foreground-Service (notifee asForegroundService) wurde
  * entfernt – er verursachte auf Android 14 einen nativen Absturz nach dem Login
@@ -19,7 +29,7 @@
  */
 import { AppState } from "react-native";
 import * as api from "./api";
-import { ensureChannels, showAlert } from "./notify";
+import { ensureChannels, notifyForEvent } from "./notify";
 import { rlog } from "./crashlog";
 
 let ws = null;
@@ -40,9 +50,14 @@ function emit(ev) {
   subscribers.forEach((fn) => { try { fn(ev); } catch (_) {} });
 }
 
-// http(s)://host:port  ->  ws(s)://host:port/ws
+// http(s)://host:port  ->  ws(s)://host:port/ws?token=...
+// Das Token authentifiziert die WS-Verbindung; der Server leitet daraus die Rolle
+// ab und stellt nur deren Events zu. (React-Native-WebSocket kennt keine eigenen
+// Header-Optionen fuer den Handshake -> Query-Parameter, wie vom Backend erwartet.)
 function wsUrl() {
-  return api.getBaseUrl().replace(/^http/, "ws") + "/ws";
+  const base = api.getBaseUrl().replace(/^http/, "ws") + "/ws";
+  const tok = api.getToken();
+  return tok ? `${base}?token=${encodeURIComponent(tok)}` : base;
 }
 
 function connect() {
@@ -58,9 +73,10 @@ function connect() {
     let ev;
     try { ev = JSON.parse(e.data); } catch (_) { return; }
     emit(ev);   // Dashboards sofort aktualisieren
-    // Benachrichtigung NUR wenn App nicht im Vordergrund + neue Detektion
-    if (ev.typ === "vorfall.neu" && appState !== "active") {
-      try { await showAlert(ev); } catch (_) {}
+    // Benachrichtigung NUR wenn App nicht im Vordergrund; welches Event fuer
+    // welche Rolle relevant ist, entscheidet notifyForEvent (Datenschutz!).
+    if (appState !== "active") {
+      try { await notifyForEvent(ev, api.getRole()); } catch (_) {}
     }
   };
   ws.onerror = () => { try { ws && ws.close(); } catch (_) {} };

@@ -22,11 +22,16 @@ export const ORTE = [
 
 let _base = DEFAULT_BASE;
 let _token = null;
+let _user = null;   // aktuell eingeloggter Nutzer (fuer rollengerechte Benachrichtigungen)
 
 export async function initApi() {
   const b = await AsyncStorage.getItem("baseUrl");
   if (b) _base = b;
   _token = await AsyncStorage.getItem("token");
+  try {
+    const u = await AsyncStorage.getItem("user");
+    if (u) _user = JSON.parse(u);
+  } catch (_) { _user = null; }
 }
 
 export function getBaseUrl() { return _base; }
@@ -65,19 +70,32 @@ async function req(path, { method = "GET", body, auth = true } = {}) {
 export async function login(username, password) {
   const data = await req("/auth/login", { method: "POST", auth: false, body: { username, password } });
   _token = data.token;
+  _user = data.user;
   await AsyncStorage.setItem("token", _token);
   await AsyncStorage.setItem("user", JSON.stringify(data.user));
   return data.user;
 }
 export async function restoreUser() {
   if (!_token) return null;
-  try { return await req("/auth/me"); }   // Token gegen Server prüfen
-  catch { await logout(); return null; }
+  try {
+    const u = await req("/auth/me");        // Token gegen Server prüfen
+    _user = u;
+    await AsyncStorage.setItem("user", JSON.stringify(u));
+    return u;
+  } catch { await logout(); return null; }
 }
 export async function logout() {
   _token = null;
+  _user = null;
   await AsyncStorage.multiRemove(["token", "user"]);
 }
+
+// Aktuelle Session (synchron) – wird u.a. von live.js/notify.js gebraucht, um
+// Benachrichtigungen rollengerecht zu verteilen (Vendor sieht KEINE KI-Details).
+export function getUser() { return _user; }
+export function getRole() { return _user && _user.role ? String(_user.role) : null; }
+// Token fuer die WebSocket-Authentifizierung (live.js haengt es als ?token= an).
+export function getToken() { return _token; }
 
 // --- Vorfälle (rollen-gefiltert im Backend) ---
 export const listVorfaelle   = () => req("/vorfaelle");

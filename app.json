@@ -42,6 +42,7 @@
         "CAMERA",
         "READ_MEDIA_IMAGES",
         "POST_NOTIFICATIONS",
+        "VIBRATE",
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_DATA_SYNC",
         "WAKE_LOCK"
