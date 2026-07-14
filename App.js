@@ -25,6 +25,9 @@ import { installCrashReporter, rlog } from "./src/crashlog";
 import {
   CctvDashboard, PatrolDashboard, VendorScreen, ProsecutorDashboard, VorfallDetail,
 } from "./src/screens";
+import {
+  IST_ANDROID, pruefeUpdate, ladeUndInstalliere, oeffneInstallEinstellungen, formatGroesse,
+} from "./src/update";
 
 // Absturz-/Fehlerbericht an den Server aktivieren (temporär fürs Debugging)
 installCrashReporter();
@@ -71,6 +74,7 @@ export default function App() {
   const [ready, setReady] = useState(false);
   const [user, setUser] = useState(null);
   const [nav, setNav] = useState({ screen: "home", params: {} });
+  const [upd, setUpd] = useState(null);        // gefundene neuere APK-Version (Android)
 
   // Beim Start: gespeicherte Session wiederherstellen + Benachrichtigungen
   // vorbereiten (Kanaele anlegen, Berechtigung anfragen). Die Berechtigung wird
@@ -88,6 +92,17 @@ export default function App() {
   }, []);
 
   const go = useCallback((screen, params = {}) => setNav({ screen, params }), []);
+
+  // In-App-Update (Android, ohne Play Store): fragt das eigene Backend, ob dort
+  // eine neuere APK liegt. Laeuft im Hintergrund und blockiert nie den Start.
+  const checkUpdate = useCallback(async (manuell = false) => {
+    const info = await pruefeUpdate();
+    if (info) setUpd(info);
+    else if (manuell) Alert.alert("Kein Update", "SafeZone ist auf dem neuesten Stand.");
+    return info;
+  }, []);
+
+  useEffect(() => { if (ready) checkUpdate(false); }, [ready, checkUpdate]);
 
   // Eingeloggt → Echtzeit-Verbindung + Hintergrund-Benachrichtigungen aktivieren.
   // Beim Logout/Beenden wieder sauber abschalten.
@@ -115,31 +130,116 @@ export default function App() {
     return <View style={st.boot}><ActivityIndicator color={C.accent} size="large" /></View>;
   }
 
-  // Nicht eingeloggt → Login
-  if (!user) {
-    return <LoginScreen onLoggedIn={(u) => { setUser(u); setNav({ screen: "home", params: {} }); }} />;
+  function renderBody() {
+    // Nicht eingeloggt → Login
+    if (!user) {
+      return (
+        <LoginScreen
+          onLoggedIn={(u) => { setUser(u); setNav({ screen: "home", params: {} }); }}
+          onCheckUpdate={() => checkUpdate(true)}
+        />
+      );
+    }
+
+    // Detailansicht (rollenübergreifend, Inhalt/Aktionen richten sich nach Rolle)
+    if (nav.screen === "detail") {
+      return <VorfallDetail user={user} vid={nav.params.vid} onBack={() => go("home")} />;
+    }
+
+    // Rollen-Dashboard
+    const dashProps = { user, onOpen: (vid) => go("detail", { vid }), onLogout: handleLogout };
+    switch (user.role) {
+      case "cctv":       return <CctvDashboard {...dashProps} />;
+      case "patrol":     return <PatrolDashboard {...dashProps} />;
+      case "vendor":     return <VendorScreen {...dashProps} />;
+      case "prosecutor": return <ProsecutorDashboard {...dashProps} />;
+      default:           return <UnknownRole user={user} onLogout={handleLogout} />;
+    }
   }
 
-  // Detailansicht (rollenübergreifend, Inhalt/Aktionen richten sich nach Rolle)
-  if (nav.screen === "detail") {
-    return <VorfallDetail user={user} vid={nav.params.vid} onBack={() => go("home")} />;
+  // Der Update-Dialog liegt ueber allem – egal ob Login oder Dashboard.
+  return (
+    <>
+      {renderBody()}
+      <UpdateDialog info={upd} onClose={() => setUpd(null)} />
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+//  In-App-Update (nur Android): dezenter Hinweis, kein Zwang.
+//  Der Nutzer kann jederzeit "Später" waehlen; beim naechsten Start wird erneut
+//  gefragt. Android verlangt zusaetzlich die Freigabe "Unbekannte Apps
+//  installieren" und laesst den Nutzer die Installation immer bestaetigen.
+// ---------------------------------------------------------------------------
+function UpdateDialog({ info, onClose }) {
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState(0);
+
+  if (!info || !IST_ANDROID) return null;
+
+  async function start() {
+    setBusy(true);
+    setProgress(0);
+    try {
+      await ladeUndInstalliere(info, setProgress);
+      // Der System-Installer uebernimmt jetzt. Dialog schliessen.
+      onClose();
+    } catch (e) {
+      Alert.alert(
+        "Update fehlgeschlagen",
+        (e?.message || String(e)) +
+        "\n\nTipp: Bitte in den Einstellungen erlauben, dass SafeZone Apps installieren darf.",
+        [
+          { text: "Einstellungen", onPress: () => { oeffneInstallEinstellungen(); } },
+          { text: "OK", style: "cancel" },
+        ],
+      );
+    } finally { setBusy(false); }
   }
 
-  // Rollen-Dashboard
-  const dashProps = { user, onOpen: (vid) => go("detail", { vid }), onLogout: handleLogout };
-  switch (user.role) {
-    case "cctv":       return <CctvDashboard {...dashProps} />;
-    case "patrol":     return <PatrolDashboard {...dashProps} />;
-    case "vendor":     return <VendorScreen {...dashProps} />;
-    case "prosecutor": return <ProsecutorDashboard {...dashProps} />;
-    default:           return <UnknownRole user={user} onLogout={handleLogout} />;
-  }
+  const pct = Math.round(progress * 100);
+
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={() => { if (!busy) onClose(); }}>
+      <View style={st.modalBg}><View style={st.modalCard}>
+        <Text style={st.mTitle}>⬆︎ Update verfügbar</Text>
+        <Text style={st.helpTxt}>
+          Version {info.versionName} (Build {info.versionCode}) steht bereit.
+          Installiert ist {info.lokal.name} (Build {info.lokal.code}).
+          {info.groesse ? ` Download: ${formatGroesse(info.groesse)}.` : ""}
+        </Text>
+        {!!info.notizen && (
+          <Text style={[st.helpTxt, { marginTop: 8 }]}>{info.notizen}</Text>
+        )}
+        <Text style={[st.helpTxt, { marginTop: 8, color: C.muted }]}>
+          Die App wird vom SafeZone-Server geladen (Tailscale). Android fragt danach
+          einmalig, ob SafeZone Apps installieren darf – bitte erlauben und die
+          Installation bestätigen.
+        </Text>
+
+        {busy ? (
+          <View style={{ marginTop: 16 }}>
+            <View style={st.progBg}><View style={[st.progFg, { width: `${pct}%` }]} /></View>
+            <Text style={[st.helpTxt, { marginTop: 8, textAlign: "center" }]}>
+              {pct > 0 ? `Lädt … ${pct}%` : "Lädt …"}
+            </Text>
+          </View>
+        ) : (
+          <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
+            <View style={{ flex: 1 }}><Button label="Später" color="#374151" onPress={onClose} /></View>
+            <View style={{ flex: 1 }}><Button label="Aktualisieren" onPress={start} /></View>
+          </View>
+        )}
+      </View></View>
+    </Modal>
+  );
 }
 
 // ---------------------------------------------------------------------------
 //  Login-Screen (Figma-Design)
 // ---------------------------------------------------------------------------
-function LoginScreen({ onLoggedIn }) {
+function LoginScreen({ onLoggedIn, onCheckUpdate }) {
   const [username, setUsername] = useState("cctv");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -305,6 +405,14 @@ function LoginScreen({ onLoggedIn }) {
               </Text>
             </TouchableOpacity>
           )}
+          {/* Android: Update-Pruefung auf Knopfdruck (sonst automatisch beim Start) */}
+          {IST_ANDROID && !!onCheckUpdate && (
+            <TouchableOpacity onPress={async () => { setSettingsOpen(false); await onCheckUpdate(); }}>
+              <Text style={[st.serverHint, { marginTop: 4, marginBottom: 8 }]}>
+                ⬆︎ Nach App-Update suchen
+              </Text>
+            </TouchableOpacity>
+          )}
           <View style={{ flexDirection: "row", gap: 10 }}>
             <View style={{ flex: 1 }}><Button label="Abbrechen" color="#374151" onPress={() => setSettingsOpen(false)} /></View>
             <View style={{ flex: 1 }}><Button label="Speichern" onPress={async () => { await api.setBaseUrl(baseUrl.trim()); setSettingsOpen(false); }} /></View>
@@ -343,4 +451,6 @@ const st = StyleSheet.create({
   modalBg: { flex: 1, backgroundColor: "#000000aa", justifyContent: "center", padding: 20 },
   modalCard: { backgroundColor: "#0b0b13", borderRadius: 18, padding: 20, borderWidth: 1, borderColor: "#26263a" },
   mTitle: { color: C.text, fontSize: 18, fontWeight: "700", marginBottom: 12 },
+  progBg: { height: 8, borderRadius: 999, backgroundColor: "#1a1a28", overflow: "hidden" },
+  progFg: { height: 8, borderRadius: 999, backgroundColor: C.accent },
 });

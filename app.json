@@ -33,6 +33,7 @@
     },
     "android": {
       "package": "de.safezone.app",
+      "versionCode": 2,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#172947"
@@ -45,7 +46,8 @@
         "VIBRATE",
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_DATA_SYNC",
-        "WAKE_LOCK"
+        "WAKE_LOCK",
+        "android.permission.REQUEST_INSTALL_PACKAGES"
       ]
     },
     "plugins": [
