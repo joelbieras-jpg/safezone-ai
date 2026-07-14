@@ -17,23 +17,25 @@ import {
 } from "react-native";
 import { Video, ResizeMode } from "expo-av";
 import * as ImagePicker from "expo-image-picker";
-import { C } from "./theme";
+import { colors, spacing, radius, type } from "./theme";
 import { Button } from "./ui";
 import * as api from "./api";
 import { rlog } from "./crashlog";
 
-const PURPLE = "#a855f7";   // Prosecutor-Akzent (wie Figma)
+// Prosecutor-Akzent (Figma: violett) – hier Material Purple 500 / 200
+const PURPLE = colors.tertiary;
+const PURPLE_TXT = colors.tertiaryLight;
 
 const jetzt = () => new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
 // ---------------------------------------------------------------------------
 //  Kleine Bausteine
 // ---------------------------------------------------------------------------
-function Platzhalter({ label, accent = C.faint }) {
+function Platzhalter({ label, accent = colors.onSurfaceDisabled }) {
   return (
     <View style={[m.abs, { alignItems: "center", justifyContent: "center" }]}>
       <Text style={{ color: accent, fontSize: 26, marginBottom: 6 }}>▤</Text>
-      <Text style={{ color: C.faint, fontSize: 10, letterSpacing: 1, fontWeight: "700" }}>{label}</Text>
+      <Text style={{ color: colors.onSurfaceDisabled, fontSize: 10, letterSpacing: 1.5, fontWeight: "700" }}>{label}</Text>
       {/* dezentes Raster wie im Figma-Prototyp */}
       <View style={m.grid} pointerEvents="none" />
     </View>
@@ -52,12 +54,12 @@ function Vollbild({ uri, onClose }) {
   );
 }
 
-// Umschalt-Chip (Standbild / Live-Feed etc.)
-function Chip({ active, label, color = C.accent, onPress }) {
+// Umschalt-Chip (Standbild / Live-Feed etc.) – Material "tonal chip"
+function Chip({ active, label, color = colors.primary, onPress }) {
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.8}
-      style={[m.chip, { borderColor: active ? color : C.cardBorder, backgroundColor: active ? color + "22" : "transparent" }]}>
-      <Text style={{ color: active ? color : C.muted, fontSize: 11, fontWeight: "700", letterSpacing: 0.5 }}>{label}</Text>
+      style={[m.chip, { borderColor: active ? color : colors.outline, backgroundColor: active ? color + "1f" : "transparent" }]}>
+      <Text style={{ color: active ? color : colors.onSurfaceMedium, fontSize: 11, fontWeight: "700", letterSpacing: 1 }}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -88,8 +90,8 @@ export function CctvFeed({ v }) {
 
           {/* Overlay: Status oben links, Kamera oben rechts */}
           <View style={m.topRow}>
-            <View style={[m.badge, { backgroundColor: live ? "#dc262633" : "#00000066", borderColor: live ? C.red : "#ffffff22" }]}>
-              <Text style={{ color: live ? C.red : "#e5e7eb", fontSize: 10, fontWeight: "800", letterSpacing: 0.5 }}>
+            <View style={[m.badge, { backgroundColor: live ? colors.error + "33" : "#00000066", borderColor: live ? colors.error : "#ffffff22" }]}>
+              <Text style={{ color: live ? colors.errorLight : "#ffffff", fontSize: 10, fontWeight: "800", letterSpacing: 0.8 }}>
                 {live ? "● LIVE" : "STANDBILD"}
               </Text>
             </View>
@@ -113,7 +115,7 @@ export function CctvFeed({ v }) {
       {/* Umschalter */}
       <View style={m.toggleRow}>
         <Chip active={!live} label="STANDBILD" onPress={() => setLive(false)} />
-        <Chip active={live} label={hasLive ? "● LIVE-FEED" : "LIVE (offline)"} color={C.red}
+        <Chip active={live} label={hasLive ? "● LIVE-FEED" : "LIVE (offline)"} color={colors.error}
           onPress={() => hasLive ? setLive(true) : Alert.alert("Kein Live-Feed", "Für diese Kamera wird aktuell kein Live-Stream empfangen.")} />
       </View>
       <Text style={m.hint}>
@@ -147,8 +149,8 @@ export function SequenzGalerie({ v }) {
             <Platzhalter label="GESICHERTE KAMERASEQUENZ" accent={PURPLE} />
           )}
           <View style={m.topRow}>
-            <View style={[m.badge, { backgroundColor: PURPLE + "22", borderColor: PURPLE + "66" }]}>
-              <Text style={{ color: PURPLE, fontSize: 10, fontWeight: "800", letterSpacing: 0.5 }}>GESICHERT</Text>
+            <View style={[m.badge, { backgroundColor: PURPLE + "33", borderColor: PURPLE + "88" }]}>
+              <Text style={{ color: PURPLE_TXT, fontSize: 10, fontWeight: "800", letterSpacing: 0.8 }}>GESICHERT</Text>
             </View>
             <View style={m.camTag}>
               <Text style={m.camTxt}>{idx < 0 ? "KEYFRAME" : `FRAME ${idx + 1}/${count}`}</Text>
@@ -178,10 +180,10 @@ export function SequenzGalerie({ v }) {
   );
 }
 
-function Thumb({ uri, label, active, color = C.accent, onPress }) {
+function Thumb({ uri, label, active, color = colors.primary, onPress }) {
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.8}
-      style={[m.thumb, { borderColor: active ? color : C.cardBorder }]}>
+      style={[m.thumb, { borderColor: active ? color : colors.outline }]}>
       <Image source={{ uri }} style={m.abs} resizeMode="cover" />
       <View style={m.thumbLabel}><Text style={{ color: "#fff", fontSize: 9, fontWeight: "700" }}>{label}</Text></View>
     </TouchableOpacity>
@@ -232,7 +234,7 @@ export function PatrolMedia({ v, onChanged }) {
             <Image source={{ uri: api.beweisbildUrl(v.id) }} style={m.abs} resizeMode="cover" />
             <View style={m.topRow}>
               <View style={[m.badge, { backgroundColor: "#00000066", borderColor: "#ffffff22" }]}>
-                <Text style={{ color: "#e5e7eb", fontSize: 10, fontWeight: "800" }}>KI-AUSLÖSER</Text>
+                <Text style={{ color: "#ffffff", fontSize: 10, fontWeight: "800", letterSpacing: 0.8 }}>KI-AUSLÖSER</Text>
               </View>
               <View style={m.camTag}><Text style={m.camTxt}>{v.kamera_stream || "CAM"}</Text></View>
             </View>
@@ -269,10 +271,10 @@ export function PatrolMedia({ v, onChanged }) {
           <Button label={busy ? "…" : "📷 FOTO AUFNEHMEN"} disabled={busy} onPress={() => auswaehlen(true)} />
         </View>
         <View style={{ flex: 1 }}>
-          <Button label="GALERIE" color="#374151" disabled={busy} onPress={() => auswaehlen(false)} />
+          <Button label="GALERIE" color={colors.secondary} variant="tonal" disabled={busy} onPress={() => auswaehlen(false)} />
         </View>
       </View>
-      {busy ? <ActivityIndicator color={C.accent} style={{ marginTop: 4 }} /> : null}
+      {busy ? <ActivityIndicator color={colors.primary} style={{ marginTop: 4 }} /> : null}
       <Text style={m.hint}>Ort „{ort}“ wird mit dem Einsatzbild gespeichert und im Verlauf dokumentiert.</Text>
 
       <Vollbild uri={voll} onClose={() => setVoll(null)} />
@@ -301,9 +303,9 @@ export function KameraKachel({ k, onOpen }) {
           <Platzhalter label="KEIN SIGNAL" />
         )}
         <View style={m.topRow}>
-          <View style={[m.badge, { backgroundColor: k.live ? "#dc262633" : "#00000066",
-                                   borderColor: k.live ? C.red : "#ffffff22" }]}>
-            <Text style={{ color: k.live ? C.red : C.muted, fontSize: 10, fontWeight: "800", letterSpacing: 0.5 }}>
+          <View style={[m.badge, { backgroundColor: k.live ? colors.error + "33" : "#00000066",
+                                   borderColor: k.live ? colors.error : "#ffffff22" }]}>
+            <Text style={{ color: k.live ? colors.errorLight : colors.onSurfaceMedium, fontSize: 10, fontWeight: "800", letterSpacing: 0.8 }}>
               {k.live ? "● LIVE" : "OFFLINE"}
             </Text>
           </View>
@@ -311,8 +313,8 @@ export function KameraKachel({ k, onOpen }) {
         </View>
       </View>
       <View style={m.kamZeile}>
-        <Text style={m.kamOrt}>{ortText}</Text>
-        <Text style={[m.kamState, { color: k.live ? C.green : C.muted }]}>
+        <Text style={m.kamOrt} numberOfLines={1}>{ortText}</Text>
+        <Text style={[m.kamState, { color: k.live ? colors.successLight : colors.onSurfaceMedium }]}>
           {k.live ? "Live-Feed – antippen" : k.aktiv ? "kein Stream" : "deaktiviert"}
         </Text>
       </View>
@@ -345,41 +347,51 @@ export function KameraVollbild({ kamera, onClose }) {
 const m = StyleSheet.create({
   abs: { ...StyleSheet.absoluteFillObject },
   frame: {
-    width: "100%", aspectRatio: 16 / 9, borderRadius: 14, overflow: "hidden",
-    backgroundColor: "#0f1219", borderWidth: 1, borderColor: C.cardBorder,
+    width: "100%", aspectRatio: 16 / 9, borderRadius: radius.lg, overflow: "hidden",
+    backgroundColor: colors.surfaceVariant, borderWidth: 1, borderColor: colors.outline,
   },
   grid: {
     position: "absolute", left: 0, right: 0, top: 0, bottom: 0, opacity: 0.12,
     borderWidth: 0,
   },
   topRow: {
-    position: "absolute", top: 8, left: 8, right: 8,
+    position: "absolute", top: spacing.sm, left: spacing.sm, right: spacing.sm,
     flexDirection: "row", justifyContent: "space-between", alignItems: "center",
   },
-  badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, borderWidth: 1 },
-  camTag: { backgroundColor: "#00000066", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  camTxt: { color: "#e5e7eb", fontSize: 10, fontWeight: "700", letterSpacing: 0.5 },
-  kamZeile: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 6, paddingHorizontal: 2 },
-  kamOrt: { color: C.text, fontSize: 13, fontWeight: "600", flex: 1 },
-  kamState: { fontSize: 11, fontWeight: "600", marginLeft: 8 },
+  badge: { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.pill, borderWidth: 1 },
+  camTag: { backgroundColor: "#000000a6", paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.sm },
+  camTxt: { color: "#ffffff", fontSize: 10, fontWeight: "700", letterSpacing: 0.8 },
+  kamZeile: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: spacing.sm, paddingHorizontal: 2 },
+  kamOrt: { color: colors.onSurface, ...type.body2, fontWeight: "600", flex: 1 },
+  kamState: { fontSize: 11, fontWeight: "700", letterSpacing: 0.4, marginLeft: spacing.sm },
   vollBg: { flex: 1, backgroundColor: "#000000ee", alignItems: "center", justifyContent: "center" },
   vollVid: { width: "100%", height: "70%" },
-  closeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#00000099", alignItems: "center", justifyContent: "center" },
-  aiTag: { position: "absolute", left: 8, bottom: 26, backgroundColor: C.accent + "22", borderColor: C.accent, borderWidth: 1, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 },
-  aiTxt: { color: C.accent, fontSize: 9, fontWeight: "800", letterSpacing: 0.5 },
-  recRow: { position: "absolute", left: 8, bottom: 8 },
-  recTxt: { color: "#f87171", fontSize: 10, fontWeight: "700", letterSpacing: 0.5, fontVariant: ["tabular-nums"] },
-  toggleRow: { flexDirection: "row", gap: 8, marginTop: 8 },
-  chip: { flex: 1, paddingVertical: 9, borderRadius: 10, borderWidth: 1, alignItems: "center" },
-  hint: { color: C.muted, fontSize: 11, marginTop: 8, lineHeight: 15 },
-  label: { color: C.muted, fontSize: 12, fontWeight: "700", letterSpacing: 0.5 },
-  ortChip: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: C.cardBorder, backgroundColor: "#0f1219" },
-  ortChipActive: { borderColor: C.accent, backgroundColor: C.accent + "22" },
-  ortTxt: { color: C.muted, fontSize: 12, fontWeight: "700" },
-  ortTxtActive: { color: C.accent },
-  thumb: { width: 74, height: 48, borderRadius: 8, overflow: "hidden", borderWidth: 2, marginRight: 8, backgroundColor: "#0f1219" },
+  closeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#000000a6", alignItems: "center", justifyContent: "center" },
+  aiTag: {
+    position: "absolute", left: spacing.sm, bottom: 26,
+    backgroundColor: colors.primary + "33", borderColor: colors.primary, borderWidth: 1,
+    paddingHorizontal: 6, paddingVertical: 2, borderRadius: radius.sm,
+  },
+  aiTxt: { color: colors.primaryLight, fontSize: 9, fontWeight: "800", letterSpacing: 0.8 },
+  recRow: { position: "absolute", left: spacing.sm, bottom: spacing.sm },
+  recTxt: { color: colors.errorLight, fontSize: 10, fontWeight: "700", letterSpacing: 0.5, fontVariant: ["tabular-nums"] },
+  toggleRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
+  chip: { flex: 1, minHeight: 40, paddingVertical: 10, borderRadius: radius.md, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  hint: { color: colors.onSurfaceMedium, fontSize: 11, marginTop: spacing.sm, lineHeight: 16 },
+  label: { color: colors.onSurfaceMedium, fontSize: 11, fontWeight: "700", letterSpacing: 1.2, textTransform: "uppercase" },
+  ortChip: {
+    paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.pill,
+    borderWidth: 1, borderColor: colors.outline, backgroundColor: colors.surfaceVariant,
+  },
+  ortChipActive: { borderColor: colors.primary, backgroundColor: colors.primary + "1f" },
+  ortTxt: { color: colors.onSurfaceMedium, fontSize: 12, fontWeight: "700" },
+  ortTxtActive: { color: colors.primaryLight },
+  thumb: {
+    width: 74, height: 48, borderRadius: radius.sm, overflow: "hidden", borderWidth: 2,
+    marginRight: spacing.sm, backgroundColor: colors.surfaceVariant,
+  },
   thumbLabel: { position: "absolute", right: 3, bottom: 3, backgroundColor: "#000000aa", paddingHorizontal: 4, borderRadius: 4 },
   fullBg: { flex: 1, backgroundColor: "#000000ee", alignItems: "center", justifyContent: "center" },
   fullImg: { width: "100%", height: "80%" },
-  fullHint: { color: C.muted, fontSize: 12, marginTop: 10 },
+  fullHint: { color: colors.onSurfaceMedium, fontSize: 12, marginTop: spacing.md },
 });
