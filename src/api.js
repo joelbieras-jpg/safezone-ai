@@ -123,3 +123,9 @@ export async function uploadEinsatzbild(id, uri, ort) {
   }
   return res.json();
 }
+
+// --- Kameras (nur CCTV/Leitstelle) -----------------------------------------
+// Übersicht ALLER registrierten Kameras – unabhängig von Vorfällen. Liefert je
+// Kamera Standort, ob sie aktiv ist, ob gerade ein Live-Stream anliegt (live)
+// und die HLS-URL für den Live-Feed.
+export const getKameras = () => req("/kameras");

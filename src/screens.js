@@ -10,7 +10,7 @@ import {
 import { StatusBar } from "expo-status-bar";
 import { C, ROLE_LABEL } from "./theme";
 import { Header, Card, StufeBadge, StatusBadge, Button, Row, Center } from "./ui";
-import { CctvFeed, SequenzGalerie, PatrolMedia } from "./media";
+import { CctvFeed, SequenzGalerie, PatrolMedia, KameraKachel, KameraVollbild } from "./media";
 import { subscribe } from "./live";
 import * as notify from "./notify";
 import * as api from "./api";
@@ -142,8 +142,74 @@ function ListDashboard({ user, onOpen, onLogout, title, subtitle, emptyText }) {
   );
 }
 
-export const CctvDashboard = (p) =>
-  <ListDashboard {...p} title="Leitstelle · CCTV" subtitle="Alle Vorfälle" emptyText="Keine Vorfälle." />;
+// ---------------------------------------------------------------------------
+//  Leitstelle (CCTV) – zwei Ansichten:
+//    "Vorfälle" = alle KI-Vorfälle (ungefiltert, RBAC im Backend)
+//    "Kameras"  = ALLE registrierten Kameras mit Live-Feed, auch ohne Vorfall
+// ---------------------------------------------------------------------------
+export function CctvDashboard({ user, onOpen, onLogout }) {
+  const [tab, setTab] = useState("vorfaelle");
+  const [items, setItems] = useState([]);
+  const [kameras, setKameras] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [voll, setVoll] = useState(null);   // Kamera im Vollbild-Live
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      if (tab === "vorfaelle") setItems(await api.listVorfaelle());
+      else setKameras(await api.getKameras());
+    } catch (e) {
+      Alert.alert("Fehler", String(e.message || e));
+    } finally { setLoading(false); }
+  }, [tab]);
+
+  useEffect(() => { load(); }, [load]);
+  // Echtzeit: bei Live-Events die Vorfallsliste neu laden
+  useEffect(() => subscribe(() => { if (tab === "vorfaelle") load(); }), [load, tab]);
+  // Kameraliste regelmäßig auffrischen (Live-Status ändert sich)
+  useEffect(() => {
+    if (tab !== "kameras") return;
+    const id = setInterval(() => api.getKameras().then(setKameras).catch(() => {}), 8000);
+    return () => clearInterval(id);
+  }, [tab]);
+
+  const leer = tab === "vorfaelle" ? "Keine Vorfälle." : "Keine Kameras registriert.";
+  const liste = tab === "vorfaelle" ? items : kameras;
+
+  return (
+    <View style={cst.screen}>
+      <StatusBar style="light" />
+      <Header title="Leitstelle · CCTV"
+        subtitle={tab === "vorfaelle" ? "Alle Vorfälle" : "Alle Kameras"}
+        right={<Menu user={user} onLogout={onLogout} />} />
+
+      {/* Umschalter */}
+      <View style={cst.tabRow}>
+        <TouchableOpacity style={[cst.tab, tab === "vorfaelle" && cst.tabAktiv]}
+          onPress={() => setTab("vorfaelle")}>
+          <Text style={[cst.tabTxt, tab === "vorfaelle" && cst.tabTxtAktiv]}>VORFÄLLE</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[cst.tab, tab === "kameras" && cst.tabAktiv]}
+          onPress={() => setTab("kameras")}>
+          <Text style={[cst.tabTxt, tab === "kameras" && cst.tabTxtAktiv]}>KAMERAS</Text>
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 4 }}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={C.accent} />}>
+        {loading && liste.length === 0 ? <Center><ActivityIndicator color={C.accent} /></Center> : null}
+        {!loading && liste.length === 0 ? <Text style={cst.empty}>{leer}</Text> : null}
+
+        {tab === "vorfaelle"
+          ? items.map((v) => <VorfallCard key={v.id} v={v} onPress={() => onOpen(v.id)} />)
+          : kameras.map((k) => <KameraKachel key={k.id} k={k} onOpen={setVoll} />)}
+      </ScrollView>
+
+      <KameraVollbild kamera={voll} onClose={() => setVoll(null)} />
+    </View>
+  );
+}
 
 export const PatrolDashboard = (p) =>
   <ListDashboard {...p} title="Einsatz · Patrol" subtitle="Sicherheitsrelevante Vorfälle" emptyText="Keine aktiven Einsätze." />;
@@ -347,6 +413,13 @@ export function VorfallDetail({ user, vid, onBack }) {
 }
 
 const cst = StyleSheet.create({
+  // Umschalter Vorfälle | Kameras (nur Leitstelle/CCTV)
+  tabRow: { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 2 },
+  tab: { flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: "center",
+         backgroundColor: "#1a1a28", borderWidth: 1, borderColor: "#1e1e30" },
+  tabAktiv: { backgroundColor: "#f9731622", borderColor: C.accent },
+  tabTxt: { color: C.muted, fontSize: 11, fontWeight: "700", letterSpacing: 1 },
+  tabTxtAktiv: { color: C.accent },
   screen: { flex: 1, backgroundColor: C.bg },
   fallId: { color: C.accent, fontWeight: "800", fontSize: 13, letterSpacing: 0.5 },
   art: { color: C.text, fontSize: 15, fontWeight: "700", marginBottom: 4 },

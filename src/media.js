@@ -283,6 +283,65 @@ export function PatrolMedia({ v, onChanged }) {
 // ---------------------------------------------------------------------------
 //  Styles
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+//  CCTV – Kamera-Übersicht (alle Kameras, unabhängig von Vorfällen)
+//  Eine Kachel je Kamera: Live-Bild (HLS) wenn ein Stream anliegt, sonst
+//  "KEIN SIGNAL". Tippen auf eine Live-Kamera öffnet den Vollbild-Live-Feed.
+// ---------------------------------------------------------------------------
+export function KameraKachel({ k, onOpen }) {
+  const ortText = [k.bereich, k.ort].filter(Boolean).join(" · ") || "Ort unbekannt";
+  return (
+    <TouchableOpacity activeOpacity={0.9} disabled={!k.live} onPress={() => onOpen && onOpen(k)}
+      style={{ marginBottom: 14 }}>
+      <View style={m.frame}>
+        {k.live ? (
+          <Video source={{ uri: k.live_url }} style={m.abs} resizeMode={ResizeMode.COVER}
+            shouldPlay isLooping isMuted useNativeControls={false} />
+        ) : (
+          <Platzhalter label="KEIN SIGNAL" />
+        )}
+        <View style={m.topRow}>
+          <View style={[m.badge, { backgroundColor: k.live ? "#dc262633" : "#00000066",
+                                   borderColor: k.live ? C.red : "#ffffff22" }]}>
+            <Text style={{ color: k.live ? C.red : C.muted, fontSize: 10, fontWeight: "800", letterSpacing: 0.5 }}>
+              {k.live ? "● LIVE" : "OFFLINE"}
+            </Text>
+          </View>
+          <View style={m.camTag}><Text style={m.camTxt}>{k.name}</Text></View>
+        </View>
+      </View>
+      <View style={m.kamZeile}>
+        <Text style={m.kamOrt}>{ortText}</Text>
+        <Text style={[m.kamState, { color: k.live ? C.green : C.muted }]}>
+          {k.live ? "Live-Feed – antippen" : k.aktiv ? "kein Stream" : "deaktiviert"}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+// Vollbild-Live-Feed einer Kamera
+export function KameraVollbild({ kamera, onClose }) {
+  if (!kamera) return null;
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <View style={m.vollBg}>
+        <Video source={{ uri: kamera.live_url }} style={m.vollVid} resizeMode={ResizeMode.CONTAIN}
+          shouldPlay isLooping isMuted={false} useNativeControls />
+        <View style={{ position: "absolute", top: 50, left: 20, right: 20,
+                       flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+          <View style={m.camTag}>
+            <Text style={m.camTxt}>{kamera.name} · {[kamera.bereich, kamera.ort].filter(Boolean).join(" · ")}</Text>
+          </View>
+          <TouchableOpacity onPress={onClose} style={m.closeBtn}>
+            <Text style={{ color: "#fff", fontSize: 18, fontWeight: "700" }}>✕</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 const m = StyleSheet.create({
   abs: { ...StyleSheet.absoluteFillObject },
   frame: {
@@ -300,6 +359,12 @@ const m = StyleSheet.create({
   badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, borderWidth: 1 },
   camTag: { backgroundColor: "#00000066", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   camTxt: { color: "#e5e7eb", fontSize: 10, fontWeight: "700", letterSpacing: 0.5 },
+  kamZeile: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 6, paddingHorizontal: 2 },
+  kamOrt: { color: C.text, fontSize: 13, fontWeight: "600", flex: 1 },
+  kamState: { fontSize: 11, fontWeight: "600", marginLeft: 8 },
+  vollBg: { flex: 1, backgroundColor: "#000000ee", alignItems: "center", justifyContent: "center" },
+  vollVid: { width: "100%", height: "70%" },
+  closeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#00000099", alignItems: "center", justifyContent: "center" },
   aiTag: { position: "absolute", left: 8, bottom: 26, backgroundColor: C.accent + "22", borderColor: C.accent, borderWidth: 1, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 },
   aiTxt: { color: C.accent, fontSize: 9, fontWeight: "800", letterSpacing: 0.5 },
   recRow: { position: "absolute", left: 8, bottom: 8 },
