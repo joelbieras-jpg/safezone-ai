@@ -146,6 +146,32 @@ function VorfallCard({ v, onPress, freigabe }) {
   );
 }
 
+// Beweisanforderung der Staatsanwaltschaft (Leitstelle/CCTV).
+// Backlog 7: der Prosecutor fordert Material an - ohne diese Ansicht landete die
+// Anforderung nur in der Datenbank und niemand in der Leitstelle erfuhr davon.
+function AnforderungCard({ a, onOpen, onErledigt }) {
+  const erledigt = a.status === "erledigt";
+  return (
+    <Card onPress={onOpen} accent={erledigt ? colors.success : colors.warning}>
+      <View style={cst.cardTop}>
+        <Text style={cst.fallId} numberOfLines={1}>{a.fall_id}</Text>
+        <Badge text={erledigt ? "ERLEDIGT" : "OFFEN"}
+          color={erledigt ? colors.success : colors.warning} />
+      </View>
+      <Text style={cst.art} numberOfLines={4}>{a.beschreibung || "—"}</Text>
+      <Text style={cst.meta} numberOfLines={1}>
+        Angefordert von {a.von || "Staatsanwaltschaft"}
+      </Text>
+      <View style={cst.cardFoot}>
+        <Text style={cst.time}>{fmt(a.erstellt_am)}</Text>
+      </View>
+      {!erledigt ? (
+        <Button label="ALS ERLEDIGT MARKIEREN" color={colors.primary} onPress={onErledigt} />
+      ) : null}
+    </Card>
+  );
+}
+
 // Leerzustand
 function Empty({ text }) {
   return (
@@ -201,6 +227,7 @@ export function CctvDashboard({ user, onOpen, onLogout }) {
   const [tab, setTab] = useState("vorfaelle");
   const [items, setItems] = useState([]);
   const [kameras, setKameras] = useState([]);
+  const [anforderungen, setAnforderungen] = useState([]);
   const [loading, setLoading] = useState(true);
   const [voll, setVoll] = useState(null);   // Kamera im Vollbild-Live
 
@@ -208,15 +235,35 @@ export function CctvDashboard({ user, onOpen, onLogout }) {
     setLoading(true);
     try {
       if (tab === "vorfaelle") setItems(await api.listVorfaelle());
-      else setKameras(await api.getKameras());
+      else if (tab === "kameras") setKameras(await api.getKameras());
+      else setAnforderungen(await api.getBeweisAnforderungen());
     } catch (e) {
       Alert.alert("Fehler", String(e.message || e));
     } finally { setLoading(false); }
   }, [tab]);
 
+  // Offene Beweisanforderungen immer im Hintergrund zaehlen (fuer das Tab-Badge),
+  // damit die Leitstelle eine neue Anforderung auch sieht, wenn sie gerade in
+  // einem anderen Tab steht.
+  const ladeAnforderungen = useCallback(async () => {
+    try { setAnforderungen(await api.getBeweisAnforderungen()); } catch { /* egal */ }
+  }, []);
+  useEffect(() => { ladeAnforderungen(); }, [ladeAnforderungen]);
+
+  async function erledigt(aid) {
+    try { await api.beweisAnforderungErledigt(aid); ladeAnforderungen(); }
+    catch (e) { Alert.alert("Fehler", String(e.message || e)); }
+  }
+
+  const offen = anforderungen.filter((a) => a.status !== "erledigt").length;
+
   useEffect(() => { load(); }, [load]);
-  // Echtzeit: bei Live-Events die Vorfallsliste neu laden
-  useEffect(() => subscribe(() => { if (tab === "vorfaelle") load(); }), [load, tab]);
+  // Echtzeit: bei Live-Events die Vorfallsliste neu laden. 'beweis.angefordert'
+  // aktualisiert zusaetzlich die Anforderungsliste/das Badge.
+  useEffect(() => subscribe((ev) => {
+    if (tab === "vorfaelle") load();
+    if (!ev || ev.typ === "beweis.angefordert") ladeAnforderungen();
+  }), [load, tab, ladeAnforderungen]);
   // Kameraliste regelmäßig auffrischen (Live-Status ändert sich)
   useEffect(() => {
     if (tab !== "kameras") return;
@@ -224,15 +271,18 @@ export function CctvDashboard({ user, onOpen, onLogout }) {
     return () => clearInterval(id);
   }, [tab]);
 
-  const leer = tab === "vorfaelle" ? "Keine Vorfälle." : "Keine Kameras registriert.";
-  const liste = tab === "vorfaelle" ? items : kameras;
+  const leer = tab === "vorfaelle" ? "Keine Vorfälle."
+    : tab === "kameras" ? "Keine Kameras registriert."
+      : "Keine Beweisanforderungen.";
+  const liste = tab === "vorfaelle" ? items : tab === "kameras" ? kameras : anforderungen;
   const liveKameras = kameras.filter((k) => k.live).length;
+  const untertitel = tab === "vorfaelle" ? "Alle Vorfälle"
+    : tab === "kameras" ? "Alle Kameras" : "Staatsanwaltschaft";
 
   return (
     <View style={cst.screen}>
       <StatusBar style="light" />
-      <Header title="Leitstelle · CCTV"
-        subtitle={tab === "vorfaelle" ? "Alle Vorfälle" : "Alle Kameras"}
+      <Header title="Leitstelle · CCTV" subtitle={untertitel}
         right={<Menu user={user} onLogout={onLogout} />} />
 
       {/* Umschalter (Material-Tabs mit Indikator) */}
@@ -245,6 +295,12 @@ export function CctvDashboard({ user, onOpen, onLogout }) {
           onPress={() => setTab("kameras")}>
           <Text style={[cst.tabTxt, tab === "kameras" && cst.tabTxtAktiv]}>KAMERAS</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={[cst.tab, tab === "anforderungen" && cst.tabAktiv]} activeOpacity={0.8}
+          onPress={() => setTab("anforderungen")}>
+          <Text style={[cst.tabTxt, tab === "anforderungen" && cst.tabTxtAktiv]}>
+            BEWEISE{offen > 0 ? ` (${offen})` : ""}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* Statuszeile */}
@@ -254,7 +310,9 @@ export function CctvDashboard({ user, onOpen, onLogout }) {
           <Text style={cst.statusTxt}>
             {tab === "vorfaelle"
               ? `LIVE · ${items.length} ${items.length === 1 ? "VORFALL" : "VORFÄLLE"}`
-              : `${kameras.length} KAMERAS · ${liveKameras} LIVE`}
+              : tab === "kameras"
+                ? `${kameras.length} KAMERAS · ${liveKameras} LIVE`
+                : `${offen} OFFEN · ${anforderungen.length} GESAMT`}
           </Text>
         </View>
       ) : null}
@@ -266,7 +324,12 @@ export function CctvDashboard({ user, onOpen, onLogout }) {
 
         {tab === "vorfaelle"
           ? items.map((v) => <VorfallCard key={v.id} v={v} onPress={() => onOpen(v.id)} />)
-          : kameras.map((k) => <KameraKachel key={k.id} k={k} onOpen={setVoll} />)}
+          : tab === "kameras"
+            ? kameras.map((k) => <KameraKachel key={k.id} k={k} onOpen={setVoll} />)
+            : anforderungen.map((a) => (
+              <AnforderungCard key={a.id} a={a} onOpen={() => onOpen(a.vorfall_id)}
+                onErledigt={() => erledigt(a.id)} />
+            ))}
       </ScrollView>
 
       <KameraVollbild kamera={voll} onClose={() => setVoll(null)} />
@@ -342,7 +405,13 @@ export function VendorScreen({ user, onLogout }) {
                     <View style={cst.entwarnungBox}>
                       <Text style={cst.entwarnungTxt}>Lage geklärt – keine Maßnahmen mehr nötig.</Text>
                     </View>
-                  ) : e.nurAnzeige ? null : (
+                  ) : e.nurAnzeige ? null : e.bestaetigt ? (
+                    // Backend liefert 'bestaetigt' - vorher blieb der Knopf ewig aktiv und
+                    // das Personal sah nie, dass die Quittung schon raus war.
+                    <View style={cst.quittungBox}>
+                      <Text style={cst.quittungTxt}>✓ Von Ihnen als gelesen bestätigt</Text>
+                    </View>
+                  ) : (
                     <Button label="GELESEN BESTÄTIGEN" color={colors.primary} onPress={() => bestaetigen(e.id)} />
                   )}
                 </View>
@@ -556,6 +625,12 @@ const cst = StyleSheet.create({
     borderWidth: 1, borderColor: colors.success + "55",
   },
   entwarnungTxt: { color: colors.successLight, ...type.body2, fontWeight: "600" },
+  quittungBox: {
+    marginTop: spacing.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.md,
+    borderRadius: radius.sm, backgroundColor: colors.primary + "14",
+    borderWidth: 1, borderColor: colors.primary + "44",
+  },
+  quittungTxt: { color: colors.onSurfaceMedium, ...type.body2, fontWeight: "600" },
 
   // KI-Konfidenzbalken
   balken: { height: 6, borderRadius: 3, backgroundColor: colors.surfaceHigh, overflow: "hidden", marginTop: spacing.md },

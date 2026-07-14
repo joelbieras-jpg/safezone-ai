@@ -106,6 +106,12 @@ export const koordinieren    = (id, status, notiz) => req(`/vorfaelle/${id}/koor
 export const getEmpfehlungen = (id) => req(`/vorfaelle/${id}/empfehlung`);
 export const bestaetigen     = (eid) => req(`/empfehlung/${eid}/bestaetigen`, { method: "POST" });
 export const beweisAnfordern = (id, beschreibung) => req(`/vorfaelle/${id}/beweis-anforderung`, { method: "POST", body: { beschreibung } });
+// Beweisanforderungen der Staatsanwaltschaft (nur CCTV/Admin): Backend liefert sie
+// laengst, die Leitstelle hatte aber keine Ansicht dafuer - die Anforderung kam nie an.
+export const getBeweisAnforderungen = () => req("/beweis-anforderungen");
+export const beweisAnforderungErledigt = (aid) => req(`/beweis-anforderungen/${aid}/erledigt`, { method: "POST" });
+// Dienstbeginn/-ende (patrol/cctv)
+export const setDienst = (im_dienst) => req("/auth/dienst", { method: "POST", body: { im_dienst } });
 
 // --- Medien (Fotos/Live/Sequenz/Einsatzbilder) ---
 // <Image>/<Video> in React Native können keine Auth-Header setzen -> Token als
